@@ -1,54 +1,52 @@
-// API 호출 함수 (도시명 기반)
-function fetchWeather(city, callback) {
-  var apiKey = 'YOUR_API_KEY';  // 발급받은 OpenWeatherMap API 키
-  var url = 'https://api.openweathermap.org/data/2.5/weather?q=' 
-            + encodeURIComponent(city) 
-            + '&appid=' + apiKey 
-            + '&units=metric&lang=kr';
+var PROXY_URL = "https://weather-proxy-gdba.onrender.com/weather";
+var cityList = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "제주"];
 
-  fetch(url)
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data && data.main && data.weather) {
-        var temp = data.main.temp;
-        var desc = data.weather[0].description;
-        callback(null, {
-          temp: temp,
-          desc: desc,
-          place: data.name
-        });
+function response(room, msg, sender, isGroupChat, replier, ImageDB, packageName) {
+  if (msg === "!날씨") {
+    var result = "☁ 전국 주요 도시 날씨 ☁\n━━━━━━━━━━━━\n";
+    for (var i = 0; i < cityList.length; i++) {
+      var w = getWeather(cityList[i]);
+      if (w) {
+        result += "📍 " + w.city + ": " + w.temp + "°C (" + w.desc + ")  [" + w.localTime + " 기준]\n";
       } else {
-        callback('날씨 정보를 가져올 수 없습니다.');
+        result += "📍 " + cityList[i] + ": 정보 없음\n";
       }
-    })
-    .catch(function(err) {
-      callback('날씨 API 요청 중 오류가 발생했습니다.');
-    });
+    }
+    replier.reply(result);
+  } else if (msg.indexOf("날씨") > -1 && msg !== "!날씨") {
+    var location = msg.replace("날씨", "").replace("!", "").trim();
+    var w = getWeather(location);
+    if (w) {
+      var text = "📍 " + w.city + " 날씨 (" + w.localTime + " 기준)\n";
+      text += "🌡 온도: " + w.temp + "°C\n";
+      text += "☁ 상태: " + w.desc + "\n";
+      text += "━━━━━━━━━━━━";
+      replier.reply(text);
+    } else {
+      replier.reply("❌ 날씨 정보를 불러올 수 없습니다.");
+    }
+  }
 }
 
-// response() 내부 수정부분
-...
-} else if (message.charAt(0) === "!" && message.indexOf("날씨") !== -1) {
-  var cityName = message.replace('!', '').replace('날씨', '');
-  if (!cityName) cityName = "Seoul";  // 기본값 설정
-  fetchWeather(cityName, function(err, info) {
-    if (err) {
-      replier.reply("⚠️ " + err);
-    } else {
-      replier.reply("🌤️ " + info.place + " 현재 날씨\n" +
-                    "온도: " + info.temp + "°C\n" +
-                    "상태: " + info.desc);
-    }
-  });
-} else if (message === "!날씨") {
-  // 도시명을 입력하지 않은 경우 디폴트로 서울
-  fetchWeather("Seoul", function(err, info) {
-    if (err) {
-      replier.reply("⚠️ " + err);
-    } else {
-      replier.reply("🌤️ " + info.place + " 현재 날씨\n" +
-                    "온도: " + info.temp + "°C\n" +
-                    "상태: " + info.desc);
-    }
-  });
+function getWeather(city) {
+  try {
+    var url = PROXY_URL + "?city=" + encodeURIComponent(city);
+    var jsonText = org.jsoup.Jsoup.connect(url)
+      .ignoreContentType(true)
+      .timeout(5000)
+      .get()
+      .text();
+
+    var data = JSON.parse(jsonText);
+    if (!data.temp) return null;
+
+    return {
+      temp: data.temp,
+      desc: data.desc,
+      city: data.city,
+      localTime: data.localTime
+    };
+  } catch (e) {
+    return null;
+  }
 }
